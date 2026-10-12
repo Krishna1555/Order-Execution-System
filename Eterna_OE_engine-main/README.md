@@ -1,139 +1,258 @@
-# Order Execution Engine
 
-A high-performance order execution engine with DEX routing and real-time WebSocket status updates. This system processes market orders by comparing prices across multiple DEXs (Raydium and Meteora) and routes orders to the best execution venue.
+# Eterna Order Execution Engine
+
+A TypeScript-based order execution engine built for Solana DeFi. It processes market orders, compares swap prices across Raydium and Meteora, and provides real-time order status updates through WebSockets.
+
+The project uses a queue system to handle multiple orders, retry failed operations, and track each order from submission to completion. It supports mock execution for development and testing, along with an optional Solana devnet mode.
+
+## About the Project
+
+The main idea behind this project is to build a system that can receive trading orders, process them in the background, and route swaps to a suitable decentralized exchange (DEX).
+
+Instead of processing every order directly inside an API request, the engine uses BullMQ and Redis to manage the workload. This helps handle concurrent orders and keeps the API responsive while orders are being processed.
+
+Each order moves through different stages, from being received and queued to routing, transaction building, submission, and confirmation or failure.
 
 ## Features
 
-- **Market Order Execution**: Immediate execution at current market price
-- **User-Owned Wallets**: Each order uses the user's own wallet for execution (not a shared service wallet)
-- **DEX Routing**: Automatically compares and routes to best price (Raydium/Meteora)
-- **Real-time Updates**: WebSocket streaming of order lifecycle with Solana Explorer links
-- **Queue Management**: Concurrent processing with rate limiting (10 concurrent, 100/min)
-- **Retry Logic**: Exponential backoff with up to 3 attempts
-- **Health Monitoring**: Comprehensive health checks for all services
-- **Devnet Execution**: Optional real Solana devnet execution via `DEVNET_ENABLED=true` (requires user wallets)
+- **Market Order Execution:** Processes orders to swap one token for another.
+- **DEX Routing:** Compares available quotes from Raydium and Meteora to select a suitable execution venue.
+- **User Wallet Support:** Designed to execute transactions using the user's wallet.
+- **Real-Time Updates:** Uses WebSockets to stream order status changes.
+- **Order Queue:** Uses BullMQ and Redis for background processing and concurrent order handling.
+- **Retry Mechanism:** Retries failed jobs with exponential backoff, up to three attempts.
+- **Database Storage:** Stores order details and execution history in PostgreSQL.
+- **Health Checks:** Provides endpoints to check the server, database, Redis, and queue.
+- **Mock Execution:** Allows development and testing without connecting to the Solana network.
+- **Devnet Support:** Includes an optional mode for testing against Solana devnet.
+
+## How It Works
+
+The basic flow of an order is:
+
+1. The client submits an order through the API.
+2. The order is validated and added to the queue.
+3. A background worker picks up the order.
+4. The DEX router compares available quotes.
+5. The selected provider prepares the swap transaction.
+6. The transaction is submitted for execution when supported by the configured provider.
+7. The order status is updated and sent to the client through WebSockets.
+8. The order details and execution result are stored in the database.
+
+### Order Statuses
+
+- `pending` – The order has been received and queued.
+- `routing` – The engine is checking available DEX quotes.
+- `building` – The transaction is being prepared.
+- `submitted` – The transaction has been sent to the network.
+- `confirmed` – The transaction has been confirmed successfully.
+- `failed` – The order could not be completed.
 
 ## Architecture
 
-```
-Client → Fastify Server → Order Service → BullMQ Queue → Order Processor
-                                                              ↓
-                                                         DEX Router
-                                                              ↓
-                                                      WebSocket Updates
+The system is divided into separate components for API handling, order processing, queue management, DEX routing, and database operations.
+
+```text
+Client
+  |
+  v
+Fastify API Server
+  |
+  v
+Order Service
+  |
+  v
+BullMQ + Redis Queue
+  |
+  v
+Order Processor
+  |
+  v
+DEX Router
+  |
+  +---- Raydium Provider
+  |
+  +---- Meteora Provider
+  |
+  v
+Execution Result
+  |
+  +---- PostgreSQL
+  |
+  +---- WebSocket Updates
 ```
 
-### Order Lifecycle
-
-1. **Pending** - Order received and queued
-2. **Routing** - Comparing DEX prices
-3. **Building** - Creating transaction
-4. **Submitted** - Transaction sent to network
-5. **Confirmed** - Transaction successful (includes txHash)
-6. **Failed** - If any step fails (includes error)
+This structure separates incoming requests from background execution and makes the system easier to test and extend.
 
 ## Tech Stack
 
-- **Runtime**: Node.js 18+ with TypeScript
-- **Framework**: Fastify with WebSocket support
-- **Queue**: BullMQ with Redis
-- **Database**: PostgreSQL for order history
-- **Testing**: Jest with unit and integration tests
+- **Node.js 18+** – Runtime environment.
+- **TypeScript** – Application logic and type safety.
+- **Fastify** – API server.
+- **WebSockets** – Real-time order updates.
+- **BullMQ** – Background job processing.
+- **Redis / Memurai** – Queue storage and job coordination.
+- **PostgreSQL** – Order history and persistent data.
+- **Supabase** – Hosted PostgreSQL option.
+- **Solana Web3.js** – Solana network interaction.
+- **Raydium SDK and Meteora SDK** – DEX integration.
+- **Jest** – Unit and integration testing.
 
-## Prerequisites
+## Project Structure
 
-- Node.js 18+
-- Memurai (Windows Redis alternative) or Redis-compatible server
-- Supabase account (for PostgreSQL database) or PostgreSQL database
-- **Solana Wallet** (for real devnet execution): Users provide their own wallet in order requests
-  - For devnet testing, use Solana faucet: https://faucet.solana.com
-  - For mock execution (`DEVNET_ENABLED=false`), any wallet format is accepted (not used for execution)
+```text
+eterna_oe_engine/
+├── src/
+│   ├── server.ts
+│   ├── config/
+│   │   ├── index.ts
+│   │   ├── database.ts
+│   │   ├── queue.ts
+│   │   └── tokens.ts
+│   ├── routes/
+│   ├── services/
+│   ├── processors/
+│   ├── queue/
+│   ├── dex/
+│   │   ├── router.ts
+│   │   ├── types.ts
+│   │   ├── mock/
+│   │   └── providers/
+│   ├── utils/
+│   ├── models/
+│   ├── types/
+│   └── tests/
+├── migrations/
+├── scripts/
+├── docs/
+├── package.json
+├── requirements.txt
+├── ENV_SETUP.md
+├── DEPLOYMENT.md
+└── README.md
+```
 
-## Quick Start
+The `src` directory contains the main application code. API routes handle requests, services manage order logic, processors execute queued jobs, and the DEX module handles routing and provider integrations.
 
-### 1. Clone and Install
+The `migrations` directory contains database migrations, while `scripts` and `docs` contain supporting tools and documentation.
+
+## Getting Started
+
+### Prerequisites
+
+Before running the project, install or configure:
+
+- Node.js 18 or later.
+- npm.
+- Redis or Memurai on Windows.
+- A PostgreSQL database, either locally or through Supabase.
+- A Solana wallet funded with devnet SOL if testing real devnet transactions.
+
+### 1. Clone the Repository
 
 ```bash
-git clone <repo-url>
-cd eterna_oe_engine
+git clone <YOUR-REPOSITORY-URL>
+cd <YOUR-REPOSITORY-NAME>
 npm install
 ```
 
-### 2. Set Up Services
+Replace the repository URL and folder name with your actual repository details.
 
-**Install Memurai (Windows Redis):**
-1. Download and install Memurai from [memurai.com](https://www.memurai.com/)
-2. Memurai runs as a Windows service on port 6379 by default
-3. Verify it's running: `Get-Service -Name Memurai*`
+### 2. Set Up Redis or Memurai
 
-**Set Up Supabase:**
-1. Create a project at [supabase.com](https://supabase.com/)
-2. Go to Project Settings → Database
-3. Copy the connection string (use Connection Pooling for better performance)
+On Windows, Memurai can be used as a Redis-compatible service.
 
-### 3. Environment Configuration
+Install Memurai from:
 
-Create a `.env` file in the root directory:
+https://www.memurai.com/
+
+After installation, check that the service is running. The default Redis-compatible port is usually `6379`.
+
+You can verify the service in PowerShell with:
+
+```powershell
+Get-Service -Name Memurai
+```
+
+If you use Redis directly, follow its installation instructions and ensure the server is running.
+
+### 3. Set Up the Database
+
+Create a PostgreSQL database or a Supabase project:
+
+https://supabase.com/
+
+Get the database connection string from your database settings. Use the connection format required by the application and enable SSL if your database provider requires it.
+
+### 4. Configure Environment Variables
+
+Create a file named `.env` in the project's root directory.
+
+Add the required configuration, using your own database credentials:
 
 ```env
 NODE_ENV=development
 PORT=3000
 LOG_LEVEL=info
 
-# Supabase connection string
-DATABASE_URL=postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?sslmode=require
-
-# Memurai (Redis-compatible)
+DATABASE_URL=your_postgresql_connection_string
 REDIS_URL=redis://localhost:6379
 
-# Queue Configuration
 QUEUE_CONCURRENCY=10
 QUEUE_RATE_LIMIT=100
+
+DEVNET_ENABLED=false
 ```
 
-See [ENV_SETUP.md](ENV_SETUP.md) for detailed setup instructions.
+Check `ENV_SETUP.md` for the complete list of environment variables and any additional configuration required by the current code.
 
-### 4. Run Database Migrations
+**Security note:** Never commit your `.env` file, wallet private keys, database passwords, or other secrets to GitHub.
+
+### 5. Run Database Migrations
 
 ```bash
 npm run db:migrate
 ```
 
-### 5. Run Application
+This prepares the database tables required by the application.
+
+### 6. Start the Application
+
+For development:
 
 ```bash
-# Development mode with hot reload
 npm run dev
+```
 
-# Production build
+To build and start the production version:
+
+```bash
 npm run build
 npm start
 ```
+
+The API will normally run at `http://localhost:3000`, unless a different port is configured.
 
 ## API Endpoints
 
 ### Health Checks
 
-- `GET /health` - Overall health check
-- `GET /health/db` - Database connectivity
-- `GET /health/redis` - Redis connectivity
-- `GET /health/queue` - Queue status
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/health` | Overall service health |
+| GET | `/health/db` | Database connectivity |
+| GET | `/health/redis` | Redis connectivity |
+| GET | `/health/queue` | Queue status |
 
-### Orders
+### Order Endpoints
 
-- `POST /api/orders/execute` - Create and execute order
-  - Returns `orderId` for tracking
-  - Order is queued for execution
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/orders/execute` | Submit a new order |
+| GET | `/api/orders/:orderId` | Retrieve order status |
+| WebSocket | `/api/orders/:orderId/ws` | Receive real-time status updates |
 
-- `GET /api/orders/:orderId/ws` - WebSocket connection for real-time status updates
-  - Connect after creating order to receive status updates
-  - Sends status updates: pending → routing → building → submitted → confirmed/failed
-
-- `GET /api/orders/:orderId` - Get order status (HTTP)
-
-### Request Example
-
-**Note:** Users must provide their own wallet for executing swaps. This ensures orders are executed from the user's wallet, not a shared service wallet.
+### Example Order Request
 
 ```json
 {
@@ -141,250 +260,161 @@ npm start
   "tokenOut": "USDC",
   "amountIn": 1,
   "slippageTolerance": 0.01,
-  "orderType": "market",
-  "walletPrivateKey": "base58-encoded-private-key-here"  // OR
-  // "walletKeypair": [array, of, 64, numbers]  // Alternative format
+  "orderType": "market"
 }
 ```
 
-**Wallet Format Options:**
-- `walletPrivateKey`: Base58-encoded private key (64 bytes) - Recommended
-- `walletKeypair`: JSON array of 64 numbers representing the secret key
+The API's actual request schema may require additional wallet fields or use a different format. Check the validation code before sending a request.
 
-**Security Note:** The wallet private key is used only for executing the swap transaction. It is NOT stored in the database (only the public wallet address is stored for reference). The private key is passed through the queue and used only during swap execution.
-
-### Response Example
+### Example Response
 
 ```json
 {
-  "orderId": "uuid-here",
+  "orderId": "your-order-id",
   "status": "pending",
   "message": "Order created and queued for execution"
 }
 ```
 
-**Confirmed Order Response (via WebSocket/GET):**
+The order ID can be used to retrieve the order status or establish a WebSocket connection.
 
-```json
-{
-  "id": "uuid-here",
-  "orderId": "uuid-here",
-  "status": "confirmed",
-  "tokenIn": "SOL",
-  "tokenOut": "USDC",
-  "amountIn": 1,
-  "amountOut": 0.985,
-  "executedPrice": 0.985,
-  "slippageTolerance": 0.01,
-  "orderType": "market",
-  "selectedDex": "raydium",
-  "txHash": "transaction-hash-here",
-  "explorerLink": "https://explorer.solana.com/tx/transaction-hash-here?cluster=devnet",
-  "userWalletAddress": "user-wallet-public-key-here",
-  "createdAt": "2024-01-01T00:00:00.000Z",
-  "updatedAt": "2024-01-01T00:00:01.000Z"
-}
-```
+## Real-Time Order Updates
 
-## WebSocket Updates
+After submitting an order, the client can connect to the order's WebSocket endpoint to receive status changes.
 
-After creating an order, connect to the WebSocket endpoint to receive real-time status updates:
+A basic example:
 
 ```javascript
-// 1. Create order via POST
-const response = await fetch('http://localhost:3000/api/orders/execute', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    tokenIn: 'SOL',
-    tokenOut: 'USDC',
-    amountIn: 1,
-    orderType: 'market'
-  })
-});
+const response = await fetch(
+  "http://localhost:3000/api/orders/execute",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      tokenIn: "SOL",
+      tokenOut: "USDC",
+      amountIn: 1,
+      orderType: "market"
+    })
+  }
+);
+
 const { orderId } = await response.json();
 
-// 2. Connect to WebSocket for updates
-const ws = new WebSocket(`ws://localhost:3000/api/orders/${orderId}/ws`);
+const ws = new WebSocket(
+  `ws://localhost:3000/api/orders/${orderId}/ws`
+);
+
 ws.onmessage = (event) => {
   const update = JSON.parse(event.data);
-  console.log('Status update:', update);
+  console.log("Order update:", update);
 };
 ```
 
-Example WebSocket message:
+This example assumes the API accepts the request without additional fields. If wallet details are required, include them according to the API schema.
 
-```json
-{
-  "type": "status_update",
-  "orderId": "uuid-here",
-  "status": "routing",
-  "data": {
-    "timestamp": "2024-01-01T00:00:00.000Z"
-  }
-}
-```
+WebSocket messages can contain the order ID, current status, and update timestamp.
 
 ## Testing
 
-### Running Tests
+The project includes tests for order processing, queue behavior, and other application components.
 
-**With Mock Providers (Default):**
+Run all tests:
+
 ```bash
-# Run all tests (uses mock providers)
 npm test
+```
 
-# Unit tests only
+Run unit tests:
+
+```bash
 npm run test:unit
+```
 
-# Integration tests
+Run integration tests:
+
+```bash
 npm run test:integration
+```
 
-# Coverage report
+Generate a coverage report:
+
+```bash
 npm run test:coverage
 ```
 
-**With Real Devnet Providers:**
-```bash
-# Windows PowerShell
-$env:DEVNET_ENABLED="true"; npm test
+### Testing with Devnet
 
-# Or use npm scripts (Windows CMD)
-npm run test:devnet           # All tests
-npm run test:devnet:unit      # Unit tests only
-npm run test:devnet:integration  # Integration tests only
+The project is designed to support mock providers by default and optional devnet configuration.
+
+On Windows PowerShell, devnet mode can be enabled for a test run with:
+
+```powershell
+$env:DEVNET_ENABLED="true"
+npm test
 ```
 
-**Test Behavior:**
-- **`DEVNET_ENABLED=false` (default)**: Tests use mock providers (always pass, no network required)
-- **`DEVNET_ENABLED=true`**: Tests use real Raydium/Meteora SDKs
-  - `getQuote()` tests: Pass (real providers have placeholder implementations)
-  - `executeSwap()` tests: Expect "not yet fully implemented" errors (expected until full SDK integration)
-  
-For more details, see [ENV_SETUP.md](./ENV_SETUP.md#testing-with-devnet-enabled).
+Check `ENV_SETUP.md` for the available devnet-specific test scripts.
 
-### Manual Testing Scripts
-
-**WebSocket Testing:**
-```bash
-# Single order with WebSocket
-WALLET_PRIVATE_KEY=your-key tsx scripts/test-websocket.ts
-```
-
-**Concurrent Orders Testing (Queue Verification):**
-```bash
-# Test 5-7 concurrent orders to verify queue design
-WALLET_PRIVATE_KEY=your-key tsx scripts/test-concurrent-orders.ts 7
-```
-
-The concurrent orders test will:
-- Create multiple orders simultaneously
-- Connect WebSocket to each order
-- Track status progression for all orders
-- Show real-time updates with millisecond timestamps
-- Generate summary report with concurrency analysis
-- Verify queue concurrency (10 workers) and rate limiting (100 orders/min)
-
-## Documentation
-
-- **[Architecture Overview](./docs/architecture.md)** - System design and decisions
-- **[BullMQ <> Redis Architecture](./docs/bullmq-redis-architecture.md)** - Complete end-to-end control flow, queue system, and Redis integration details
-- **[WebSocket Testing Guide](./docs/WEBSOCKET_TESTING.md)** - Guide for testing WebSocket connections and real-time status updates
-- **[Environment Setup](./ENV_SETUP.md)** - Local development setup instructions
-- **[API Documentation](./docs/api/postman-collection.json)** - Postman collection for API testing
-
-## Project Structure
-
-```
-eterna_oe_engine/
-├── src/
-│   ├── server.ts              # Fastify server setup
-│   ├── config/                # Configuration
-│   │   ├── index.ts           # Main config
-│   │   ├── database.ts        # Database config
-│   │   ├── queue.ts           # Queue worker configuration
-│   │   └── tokens.ts          # Solana token mint addresses
-│   ├── routes/                # API routes
-│   ├── services/              # Business logic
-│   ├── processors/            # Queue workers (order.processor.ts)
-│   ├── queue/                 # Queue management
-│   │   ├── order.queue.ts     # BullMQ Queue instance
-│   │   └── retry.config.ts    # Retry configuration
-│   ├── dex/                   # DEX routing
-│   │   ├── router.ts          # DEX router (switches between mock/real)
-│   │   ├── types.ts           # DexProvider interface
-│   │   ├── mock/              # Mock providers (Option B)
-│   │   │   ├── raydium.mock.ts
-│   │   │   └── meteora.mock.ts
-│   │   └── providers/         # Real providers (Option A)
-│   │       ├── raydium.provider.ts
-│   │       └── meteora.provider.ts
-│   ├── utils/                 # Utilities
-│   │   ├── solana.ts          # Solana wallet/connection utilities
-│   │   ├── validation.ts      # Input validation (includes wallet validation)
-│   │   ├── logger.ts          # Logging
-│   │   └── errors.ts          # Custom error types
-│   ├── models/                # Database models
-│   ├── queue/                 # Queue configuration
-│   ├── types/                 # TypeScript types
-│   ├── utils/                 # Utilities
-│   └── tests/                 # Tests
-├── migrations/                # Database migrations
-├── scripts/                   # Utility scripts
-└── docs/                      # Documentation
-```
+**Important:** The repository documentation indicates that parts of the real DEX provider implementation may still be incomplete. Mock tests do not prove that real swaps work successfully. Verify the current implementation before attempting live devnet execution.
 
 ## Design Decisions
 
-### Why Market Orders?
+### Why Use a Queue?
 
-Market orders provide immediate execution at current market price, making them ideal for demonstrating the DEX routing and execution flow. They eliminate the complexity of price monitoring (limit orders) or token launch detection (sniper orders), allowing focus on core architecture: routing logic, queue management, and real-time status updates.
+A queue allows the API to accept orders without having to finish processing them immediately. Background workers can handle multiple jobs while rate limits and retry rules help manage failures.
 
-### User-Owned Wallets (Not Service Wallets)
+### Why Compare DEX Quotes?
 
-The system uses **user-owned wallets** rather than a shared service wallet. This architecture choice provides:
+Different decentralized exchanges may offer different prices for the same swap. Comparing quotes helps the engine choose a suitable route based on the available data.
 
-- **Security**: Users maintain control of their funds - the service never holds user assets
-- **Transparency**: Each transaction is signed by the user's wallet, visible on Solana Explorer
-- **Decentralization**: No single point of failure or custody risk
-- **Compliance**: Reduces regulatory concerns by not acting as a custodian
+The final execution price can still differ because of slippage, changing liquidity, network conditions, and transaction fees.
 
-Users provide their wallet (`walletPrivateKey` or `walletKeypair`) in order requests. The private key is used only during swap execution and is **never stored** in the database (only the public wallet address is stored for reference).
+### Mock Execution and Devnet
 
-### Real Devnet Execution (Option A)
+Mock execution makes it easier to test the order lifecycle without depending on a live network. Devnet mode provides a way to test supported Solana integrations using test funds.
 
-When `DEVNET_ENABLED=true`, the system uses actual Raydium and Meteora SDKs to execute real trades on Solana devnet:
+Real execution depends on complete provider implementations, valid transactions, sufficient test SOL, and available liquidity.
 
-- **Raydium Provider**: Uses `@raydium-io/raydium-sdk-v2` for real Raydium swaps
-- **Meteora Provider**: Uses `@meteora-ag/dynamic-amm-sdk` for real Meteora swaps
-- **Transaction Execution**: Uses `@solana/web3.js` to sign and submit transactions with user's wallet
-- **Solana Explorer**: Transaction hashes are automatically converted to Solana Explorer links
-- **Devnet Testing**: Use Solana faucet (https://faucet.solana.com) to fund test wallets
+### Security Considerations
 
-### Mock Execution (Option B)
+The design supports user-owned wallets rather than a shared service wallet. However, accepting private keys through an API request or queue introduces security risks.
 
-When `DEVNET_ENABLED=false` or undefined, the system uses mock providers:
+For any real deployment:
 
-- Simulates DEX responses with realistic delays (2-3 seconds)
-- Mock price variations between DEXs (~2-5% difference)
-- Focus on architecture and flow without Solana network dependencies
-- Ideal for testing and development without devnet setup
+- Never send wallet private keys through an unencrypted connection.
+- Avoid logging or persisting private keys.
+- Do not expose secrets in API responses or error messages.
+- Use secure transaction-signing practices and minimize private-key handling.
+- Validate orders, token addresses, amounts, and slippage settings.
+- Use authentication, rate limits, and appropriate access controls.
 
-### Extending to Other Order Types
+A claim that private keys are not stored should be verified against the actual application code and logging configuration.
 
-- **Limit Orders**: Add price monitoring service that polls DEX prices and triggers execution when target price is reached. User wallets would be required in limit order requests.
-- **Sniper Orders**: Add token launch detection service that monitors new token deployments and executes swaps immediately upon pool creation. Uses user's wallet for transaction signing.
+## Future Improvements
 
-Both extensions would integrate with the existing queue system and DEX router without requiring architectural changes.
+Possible extensions include:
 
-## Deployment
+- Adding limit orders with price-based execution triggers.
+- Supporting more DEX providers.
+- Improving quote comparison and route selection.
+- Adding more detailed execution metrics and monitoring.
+- Completing and testing real swap execution.
+- Improving wallet security and transaction-signing workflows.
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+## Documentation
 
-## API Documentation
+Additional documentation may be available in:
 
-Postman collection available in `docs/api/postman-collection.json`
+- `ENV_SETUP.md` – Environment configuration.
+- `DEPLOYMENT.md` – Deployment instructions.
+- `docs/architecture.md` – System architecture.
+- `docs/bullmq-redis-architecture.md` – Queue and Redis workflow.
+- `docs/WEBSOCKET_TESTING.md` – WebSocket testing.
+- `docs/api/postman-collection.json` – API testing collection.
 
 ## License
 
-MIT
+This project is distributed under the MIT License. See the `LICENSE` file for the full terms.
