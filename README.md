@@ -103,6 +103,3 @@ Never commit private keys, database credentials, or `.env` files to GitHub. Veri
 
 **Note:** Real swap execution depends on the completeness of the DEX integrations and transaction configuration. Mock execution does not guarantee successful on-chain swaps.
 
-## License
-
-MIT License.
