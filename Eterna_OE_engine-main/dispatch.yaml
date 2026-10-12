@@ -1,0 +1,40 @@
+# Dispatch Configuration for App Engine
+# Routes requests to different services based on URL patterns
+# Reference: https://docs.cloud.google.com/appengine/docs/standard/reference/dispatch-yaml
+# Wildcards can be used: (1) before hostname, (2) at the end of URL path
+# Examples: "*/mobile/*", "*/work*", "simple-sample.uc.r.appspot.com/mobile*"
+#
+# NOTE: Worker Service (worker-service) is NOT included in dispatch.yaml because:
+#   - Worker service processes background queue jobs (BullMQ) - no user-facing HTTP routes
+#   - Worker service health endpoints are accessed directly via service URL:
+#     https://worker-service-dot-PROJECT_ID.appspot.com/health/*
+#   - Worker service does not need routing through the main app URL
+
+dispatch:
+  # Route health checks to Health service (most specific first)
+  # Matches any hostname with path starting with /health/
+  # Note: Worker service also has health endpoints, but they're accessed via its service URL directly
+  - url: "*/health/*"
+    service: health-service
+
+  # Route /api/orders/execute specifically to API service (before wildcard pattern)
+  # This exact match must come before /api/orders/* to match first
+  # Matches any hostname with exact path /api/orders/execute
+  # Note: App Engine dispatch.yaml doesn't support HTTP method-based routing,
+  # so this matches both POST and GET requests to /api/orders/execute
+  - url: "*/api/orders/execute"
+    service: default
+
+  # Route all other /api/orders/* paths to WebSocket service
+  # Matches any hostname with path starting with /api/orders/
+  # This matches:
+  #   - GET /api/orders/:orderId (order status - handled by API routes in websocket-service)
+  #   - WebSocket /api/orders/:orderId/ws (handled by WebSocket route in websocket-service)
+  # Note: We can't match /api/orders/:orderId/ws specifically due to wildcard restrictions,
+  # but websocket-service handles both HTTP GET and WebSocket upgrades for these paths
+  - url: "*/api/orders/*"
+    service: websocket-service
+
+  # Default fallback for all other routes
+  - url: "*/*"
+    service: default

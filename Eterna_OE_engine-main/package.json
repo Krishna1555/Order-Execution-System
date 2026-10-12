@@ -1,0 +1,72 @@
+{
+  "name": "eterna-oe-engine",
+  "version": "1.0.0",
+  "description": "Order Execution Engine with DEX routing and WebSocket status updates",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "start:api": "node dist/servers/api-server.js",
+    "start:websocket": "node dist/servers/websocket-server.js",
+    "start:health": "node dist/servers/health-server.js",
+    "start:worker": "node dist/servers/worker-server.js",
+    "test": "jest",
+    "test:unit": "jest --testPathPattern=unit",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:coverage": "jest --coverage",
+    "test:devnet": "set DEVNET_ENABLED=true&& jest",
+    "test:devnet:unit": "set DEVNET_ENABLED=true&& jest --testPathPattern=unit",
+    "test:devnet:integration": "set DEVNET_ENABLED=true&& jest --testPathPattern=integration",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "deploy:gcp": "bash scripts/deploy-gcp.sh"
+  },
+  "keywords": [
+    "order-execution",
+    "dex",
+    "websocket",
+    "solana"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@fastify/websocket": "^10.0.1",
+    "@google-cloud/secret-manager": "^6.1.1",
+    "@meteora-ag/dynamic-amm-sdk": "^1.4.1",
+    "@raydium-io/raydium-sdk-v2": "^2.0.0-rc.11",
+    "@solana/buffer-layout": "^4.0.0",
+    "@solana/spl-token": "^0.4.1",
+    "@solana/web3.js": "^1.87.6",
+    "axios": "^1.13.2",
+    "bs58": "^5.0.0",
+    "bullmq": "^5.22.0",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.26.2",
+    "ioredis": "^5.3.2",
+    "pg": "^8.11.5",
+    "uuid": "^9.0.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.2.0",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.30",
+    "@types/pg": "^8.10.9",
+    "@types/uuid": "^9.0.8",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^7.1.1",
+    "@typescript-eslint/parser": "^7.1.1",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.3",
+    "ws": "^8.19.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

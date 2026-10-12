@@ -1,0 +1,52 @@
+# App Engine Configuration for Worker Service (Standard Environment)
+# Processes BullMQ queue
+# NOTE: App Engine Standard requires HTTP server, so worker must have ENABLE_HTTP_SERVER=true
+# Worker will process queue jobs and also expose a minimal HTTP endpoint for health checks
+
+runtime: nodejs22
+
+service: worker-service
+
+# Use service-specific entry point
+entrypoint: node dist/servers/worker-server.js
+
+# Standard environment uses instance_class for memory allocation
+# F2 for queue processing (512MB memory should be sufficient for most workloads)
+# NOTE: F2 instance class requires automatic_scaling (not basic_scaling)
+instance_class: F1
+
+# Automatic scaling for workers (configured for fixed instances)
+# F2 instance class only works with automatic_scaling, so we use min=max to simulate fixed instances
+# Workers process queue jobs in the background, fixed instances ensure consistent throughput
+automatic_scaling:
+  min_instances: 2  # Fixed minimum (same as max for consistent throughput)
+  max_instances: 2
+  target_cpu_utilization: 0.8
+
+# Cloud SQL instance connection (required for Unix socket provisioning)
+# This tells App Engine Standard to provision the Unix socket at /cloudsql/INSTANCE_CONNECTION_NAME
+beta_settings:
+  cloud_sql_instances: eterna-oe-engine-483916:asia-south1:eterna-oe-engine-pg
+
+# VPC Access Connector for Cloud Memorystore (private IP)
+# Required for App Engine Standard to access Memorystore private IP (10.240.77.139)
+# private-ranges-only: Routes private IPs through VPC, public IPs (like Supabase) go directly
+vpc_access_connector:
+  name: projects/eterna-oe-engine-483916/locations/asia-south1/connectors/eterna-oe-connector
+  egress_setting: private-ranges-only
+
+env_variables:
+  SERVICE_TYPE: 'worker'
+  ENABLE_HTTP_SERVER: 'true'  # Standard environment requires HTTP server
+  ENABLE_WEBSOCKET: 'false'
+  ENABLE_WORKER: 'true'
+  ENABLE_HEALTH: 'true'  # Enable health endpoint for Standard environment requirement
+  NODE_ENV: 'production'
+  LOG_LEVEL: 'info'
+  # Note: DATABASE_URL and REDIS_URL are loaded from .env file (included in deployment)
+  QUEUE_CONCURRENCY: '10'
+  QUEUE_RATE_LIMIT: '100'
+  # Solana configuration (can be overridden by .env file)
+  SOLANA_RPC_URL: 'https://api.mainnet-beta.solana.com'
+  SOLANA_CLUSTER: 'mainnet-beta'
+  DEVNET_ENABLED: 'true'

@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Order Status Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+        }
+        
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-connected {
+            background: #4caf50;
+            box-shadow: 0 0 8px #4caf50;
+        }
+        
+        .status-disconnected {
+            background: #f44336;
+        }
+        
+        .status-connecting {
+            background: #ff9800;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .messages {
+            background: #f5f5f5;
+            border-radius: 6px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .message.status-pending { border-left-color: #9e9e9e; }
+        .message.status-routing { border-left-color: #2196f3; }
+        .message.status-building { border-left-color: #ff9800; }
+        .message.status-submitted { border-left-color: #9c27b0; }
+        .message.status-confirmed { border-left-color: #4caf50; }
+        .message.status-failed { border-left-color: #f44336; }
+        .message.type-error { border-left-color: #f44336; }
+        .message.type-confirmation { border-left-color: #4caf50; }
+        
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        
+        .message-time {
+            color: #999;
+            font-size: 11px;
+        }
+        
+        .message-body {
+            color: #333;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        .clear-btn {
+            background: #f44336;
+            margin-top: 10px;
+        }
+        
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        
+        .info-box code {
+            background: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 WebSocket Order Status Test</h1>
+            <p>Test real-time order status updates via WebSocket</p>
+        </div>
+        
+        <div class="content">
+            <div class="info-box">
+                <strong>💡 How to use:</strong><br>
+                1. Enter your wallet private key (base58) or use an existing order ID<br>
+                2. Click "Create Order" to create a new order, or "Connect to Existing Order"<br>
+                3. WebSocket will automatically connect and show real-time status updates
+            </div>
+            
+            <div class="section">
+                <h2>1. Create New Order</h2>
+                <div class="form-group">
+                    <label for="apiUrl">API URL:</label>
+                    <input type="text" id="apiUrl" value="http://localhost:3000" placeholder="http://localhost:3000">
+                </div>
+                <div class="form-group">
+                    <label for="walletKey">Wallet Private Key (Base58):</label>
+                    <textarea id="walletKey" placeholder="Enter your base58-encoded private key"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="amountIn">Amount In (SOL):</label>
+                    <input type="number" id="amountIn" value="0.1" step="0.1" min="0.01">
+                </div>
+                <button id="createOrderBtn" onclick="createOrder()">Create Order & Connect</button>
+            </div>
+            
+            <div class="section">
+                <h2>2. Or Connect to Existing Order</h2>
+                <div class="form-group">
+                    <label for="orderId">Order ID:</label>
+                    <input type="text" id="orderId" placeholder="Enter existing order ID">
+                </div>
+                <button id="connectBtn" onclick="connectToOrder()">Connect to Existing Order</button>
+            </div>
+            
+            <div class="section">
+                <h2>3. Connection Status</h2>
+                <p>
+                    <span id="statusIndicator" class="status-indicator status-disconnected"></span>
+                    <span id="statusText">Disconnected</span>
+                </p>
+                <p id="orderInfo" style="margin-top: 10px; color: #666; font-size: 14px;"></p>
+            </div>
+            
+            <div class="section">
+                <h2>4. Status Updates</h2>
+                <button class="clear-btn" onclick="clearMessages()">Clear Messages</button>
+                <div id="messages" class="messages">
+                    <div style="text-align: center; color: #999; padding: 20px;">
+                        No messages yet. Create an order or connect to an existing one.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let currentOrderId = null;
+
+        function updateStatus(connected, text) {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            
+            indicator.className = 'status-indicator ' + (connected ? 'status-connected' : 'status-disconnected');
+            statusText.textContent = text;
+        }
+
+        function addMessage(message, type = 'status_update') {
+            const messagesDiv = document.getElementById('messages');
+            
+            // Clear placeholder if exists
+            if (messagesDiv.children.length === 1 && messagesDiv.children[0].textContent.includes('No messages')) {
+                messagesDiv.innerHTML = '';
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message type-${message.type} status-${message.status}`;
+            
+            const time = new Date(message.data?.timestamp || new Date()).toLocaleTimeString();
+            const status = message.status.toUpperCase();
+            
+            let body = `Status: ${status}\n`;
+            if (message.data) {
+                if (message.data.selectedDex) body += `DEX: ${message.data.selectedDex}\n`;
+                if (message.data.amountOut !== undefined) body += `Amount Out: ${message.data.amountOut}\n`;
+                if (message.data.executedPrice !== undefined) body += `Price: ${message.data.executedPrice}\n`;
+                if (message.data.txHash) body += `TX Hash: ${message.data.txHash}\n`;
+                if (message.data.explorerLink) body += `Explorer: ${message.data.explorerLink}\n`;
+                if (message.data.error) body += `Error: ${message.data.error}\n`;
+            }
+            
+            messageDiv.innerHTML = `
+                <div class="message-header">
+                    <span>${message.type.toUpperCase()}</span>
+                    <span class="message-time">${time}</span>
+                </div>
+                <div class="message-body">${body}</div>
+            `;
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function clearMessages() {
+            document.getElementById('messages').innerHTML = `
+                <div style="text-align: center; color: #999; padding: 20px;">
+                    Messages cleared.
+                </div>
+            `;
+        }
+
+        function connectWebSocket(orderId) {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const wsUrl = apiUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+            const wsEndpoint = `${wsUrl}/api/orders/${orderId}/ws`;
+            
+            updateStatus(false, 'Connecting...');
+            document.getElementById('statusIndicator').className = 'status-indicator status-connecting';
+            
+            if (ws) {
+                ws.close();
+            }
+            
+            ws = new WebSocket(wsEndpoint);
+            currentOrderId = orderId;
+            
+            document.getElementById('orderInfo').textContent = `Order ID: ${orderId}`;
+            
+            ws.onopen = () => {
+                updateStatus(true, 'Connected');
+                addMessage({
+                    type: 'status_update',
+                    orderId: orderId,
+                    status: 'connected',
+                    data: { timestamp: new Date().toISOString() }
+                });
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    addMessage(message);
+                } catch (error) {
+                    console.error('Failed to parse message:', error);
+                    addMessage({
+                        type: 'error',
+                        orderId: orderId,
+                        status: 'error',
+                        data: {
+                            error: 'Failed to parse WebSocket message',
+                            timestamp: new Date().toISOString()
+                        }
+                    });
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateStatus(false, 'Connection Error');
+                addMessage({
+                    type: 'error',
+                    orderId: orderId,
+                    status: 'error',
+                    data: {
+                        error: 'WebSocket connection error',
+                        timestamp: new Date().toISOString()
+                    }
+                });
+            };
+            
+            ws.onclose = () => {
+                updateStatus(false, 'Disconnected');
+                addMessage({
+                    type: 'status_update',
+                    orderId: orderId,
+                    status: 'disconnected',
+                    data: { timestamp: new Date().toISOString() }
+                });
+            };
+        }
+
+        async function createOrder() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const walletKey = document.getElementById('walletKey').value.trim();
+            const amountIn = parseFloat(document.getElementById('amountIn').value);
+            
+            if (!walletKey) {
+                alert('Please enter your wallet private key');
+                return;
+            }
+            
+            if (!amountIn || amountIn <= 0) {
+                alert('Please enter a valid amount');
+                return;
+            }
+            
+            const btn = document.getElementById('createOrderBtn');
+            btn.disabled = true;
+            btn.textContent = 'Creating Order...';
+            
+            try {
+                const response = await fetch(`${apiUrl}/api/orders/execute`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tokenIn: 'SOL',
+                        tokenOut: 'USDC',
+                        amountIn: amountIn,
+                        slippageTolerance: 0.01,
+                        orderType: 'market',
+                        walletPrivateKey: walletKey
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to create order');
+                }
+                
+                // Connect WebSocket
+                connectWebSocket(data.orderId);
+                
+            } catch (error) {
+                alert('Error creating order: ' + error.message);
+                console.error('Error:', error);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Create Order & Connect';
+            }
+        }
+
+        function connectToOrder() {
+            const orderId = document.getElementById('orderId').value.trim();
+            
+            if (!orderId) {
+                alert('Please enter an order ID');
+                return;
+            }
+            
+            connectWebSocket(orderId);
+        }
+    </script>
+</body>
+</html>

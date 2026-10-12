@@ -1,0 +1,49 @@
+# App Engine Configuration for Health Service (Standard Environment)
+# Handles /health/* endpoints for monitoring
+
+runtime: nodejs22
+
+service: health-service
+
+# Use service-specific entry point
+entrypoint: node dist/servers/health-server.js
+
+# Standard environment uses instance_class for memory allocation
+instance_class: F1
+
+automatic_scaling:
+  min_instances: 0  # Can scale to zero when not in use
+  max_instances: 3
+  target_cpu_utilization: 0.8
+  # Health checks should respond quickly
+  min_pending_latency: 100ms
+  max_pending_latency: automatic
+  # Health checks are lightweight - can handle many concurrent requests
+  max_concurrent_requests: 50
+
+# Cloud SQL instance connection (required for Unix socket provisioning)
+# This tells App Engine Standard to provision the Unix socket at /cloudsql/INSTANCE_CONNECTION_NAME
+beta_settings:
+  cloud_sql_instances: eterna-oe-engine-483916:asia-south1:eterna-oe-engine-pg
+
+# VPC Access Connector for Cloud Memorystore (private IP)
+# Required for App Engine Standard to access Memorystore private IP (10.240.77.139)
+# private-ranges-only: Routes private IPs through VPC, public IPs (like Supabase) go directly
+vpc_access_connector:
+  name: projects/eterna-oe-engine-483916/locations/asia-south1/connectors/eterna-oe-connector
+  egress_setting: private-ranges-only
+
+env_variables:
+  SERVICE_TYPE: 'health'
+  ENABLE_HTTP_SERVER: 'true'
+  ENABLE_WEBSOCKET: 'false'
+  ENABLE_WORKER: 'false'
+  ENABLE_HEALTH: 'true'
+  NODE_ENV: 'production'
+  PORT: '8080'
+  LOG_LEVEL: 'info'
+  # Note: DATABASE_URL and REDIS_URL are loaded from .env file (included in deployment)
+  # Solana configuration (not needed for health service, but kept for consistency)
+  SOLANA_RPC_URL: 'https://api.mainnet-beta.solana.com'
+  SOLANA_CLUSTER: 'mainnet-beta'
+  DEVNET_ENABLED: 'true'

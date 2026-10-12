@@ -1,0 +1,184 @@
+{
+  "info": {
+    "name": "Order Execution Engine API",
+    "description": "API collection for Order Execution Engine with DEX routing and WebSocket support. **IMPORTANT:** Users must provide their own Solana wallet (walletPrivateKey or walletKeypair) in order requests. For devnet testing, use Solana faucet: https://faucet.solana.com",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Checks",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Database Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/db",
+              "host": ["{{base_url}}"],
+              "path": ["health", "db"]
+            }
+          }
+        },
+        {
+          "name": "Redis Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/redis",
+              "host": ["{{base_url}}"],
+              "path": ["health", "redis"]
+            }
+          }
+        },
+        {
+          "name": "Queue Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/queue",
+              "host": ["{{base_url}}"],
+              "path": ["health", "queue"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Execute Order (HTTP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tokenIn\": \"SOL\",\n  \"tokenOut\": \"USDC\",\n  \"amountIn\": 100,\n  \"slippageTolerance\": 0.01,\n  \"orderType\": \"market\",\n  \"walletPrivateKey\": \"YOUR_BASE58_ENCODED_PRIVATE_KEY_HERE\"\n}"
+            },
+            "description": "Execute a market order. **IMPORTANT:** Users must provide their own wallet (walletPrivateKey or walletKeypair). The wallet is used to execute the swap transaction on Solana. For devnet testing, use Solana faucet: https://faucet.solana.com",
+            "url": {
+              "raw": "{{base_url}}/api/orders/execute",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "execute"]
+            }
+          }
+        },
+        {
+          "name": "Connect WebSocket (after creating order)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "ws://{{base_url}}/api/orders/:orderId/ws",
+              "protocol": "ws",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", ":orderId", "ws"],
+              "variable": [
+                {
+                  "key": "orderId",
+                  "value": "{{orderId}}",
+                  "description": "Order ID from POST /api/orders/execute response"
+                }
+              ]
+            },
+            "description": "Note: Postman supports WebSocket connections. Connect to this endpoint after creating an order to receive real-time status updates. Messages include status changes (pending → routing → building → submitted → confirmed/failed) and transaction details (txHash, explorerLink) when order is confirmed."
+          },
+          "response": [
+            {
+              "name": "WebSocket Status Updates Example",
+              "body": "// Status updates received via WebSocket:\n// {\n//   \"type\": \"status_update\",\n//   \"orderId\": \"uuid-here\",\n//   \"status\": \"routing\",\n//   \"data\": { \"timestamp\": \"2024-01-01T00:00:00.000Z\" }\n// }\n//\n// {\n//   \"type\": \"confirmation\",\n//   \"orderId\": \"uuid-here\",\n//   \"status\": \"confirmed\",\n//   \"data\": {\n//     \"txHash\": \"transaction-hash\",\n//     \"executedPrice\": 0.985,\n//     \"selectedDex\": \"raydium\",\n//     \"explorerLink\": \"https://explorer.solana.com/tx/transaction-hash?cluster=devnet\",\n//     \"timestamp\": \"2024-01-01T00:00:01.000Z\"\n//   }\n// }"
+            }
+          ]
+        },
+        {
+          "name": "Get Order Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/orders/:orderId",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", ":orderId"],
+              "variable": [
+                {
+                  "key": "orderId",
+                  "value": "{{orderId}}"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Order Confirmed",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/orders/:orderId",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "orders", ":orderId"],
+                  "variable": [
+                    {
+                      "key": "orderId",
+                      "value": "{{orderId}}"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": \"uuid-here\",\n  \"orderId\": \"uuid-here\",\n  \"status\": \"confirmed\",\n  \"tokenIn\": \"SOL\",\n  \"tokenOut\": \"USDC\",\n  \"amountIn\": 100,\n  \"amountOut\": 98.5,\n  \"executedPrice\": 0.985,\n  \"slippageTolerance\": 0.01,\n  \"orderType\": \"market\",\n  \"selectedDex\": \"raydium\",\n  \"txHash\": \"transaction-hash-here\",\n  \"explorerLink\": \"https://explorer.solana.com/tx/transaction-hash-here?cluster=devnet\",\n  \"userWalletAddress\": \"user-wallet-public-key-here\",\n  \"createdAt\": \"2024-01-01T00:00:00.000Z\",\n  \"updatedAt\": \"2024-01-01T00:00:01.000Z\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "orderId",
+      "value": "",
+      "type": "string",
+      "description": "Order ID from POST /api/orders/execute response"
+    },
+    {
+      "key": "walletPrivateKey",
+      "value": "",
+      "type": "string",
+      "description": "Base58-encoded Solana private key (64 bytes). For devnet testing, use Solana faucet: https://faucet.solana.com"
+    }
+  ]
+}
